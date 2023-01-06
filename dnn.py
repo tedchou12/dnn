@@ -1,5 +1,5 @@
 import numpy as np
-from utils import sigmoid, sigmoid_backward, relu, relu_backward, leaky_relu, leaky_relu_backward, tanh, tanh_backward
+from .utils import sigmoid, sigmoid_backward, relu, relu_backward, leaky_relu, leaky_relu_backward, tanh, tanh_backward
 import math
 
 class dnn :
@@ -20,8 +20,16 @@ class dnn :
     # batch
     mini_batch = False
     batch_size = 500
+    # optimization
+    adam = False
+    momentum = False
+    beta_1 = 0.9
+    rms = False
+    beta_2 = 0.999
+    epsilon = 1e-8
     # others
     verbose = False
+    verbose_int = 10
     costs = {}
 
     def __init__(self, X='', Y='') :
@@ -45,9 +53,15 @@ class dnn :
                 else :
                     initial_factor = np.sqrt(1 / self.layers[i-1]['size'])
                 self.parameters['W' + str(i)] = np.random.randn(self.layers[i]['size'], self.layers[i-1]['size']) * initial_factor
+                self.cache['dW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
+                self.cache['VdW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
+                self.cache['SdW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
                 self.parameters['b' + str(i)] = np.random.randn(self.layers[i]['size'], 1)
+                self.cache['db' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                self.cache['Vdb' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                self.cache['Sdb' + str(i)] = np.zeros((self.layers[i]['size'], 1))
 
-    def forward_prop(self) :
+    def forward_prop(self, e) :
         for i in range(1, len(self.layers)) :
             self.cache['Z' + str(i)] = np.dot(self.parameters['W' + str(i)], self.cache['A' + str(i - 1)]) + self.parameters['b' + str(i)]
             if self.layers[i]['activation'] == 'relu' :
@@ -63,7 +77,7 @@ class dnn :
                 self.cache['D' + str(i)] = self.cache['D' + str(i)] < self.keep_probs['D' + str(i)]
                 self.cache['A' + str(i)] = self.cache['A' + str(i)] * self.cache['D' + str(i)] / self.keep_probs['D' + str(i)]
 
-    def backward_prop(self) :
+    def backward_prop(self, e) :
         for i in range(len(self.layers) - 1, 0, -1) :
             # last layer
             if i == len(self.layers) - 1 :
@@ -89,8 +103,24 @@ class dnn :
 
         #update
         for i in range(1, len(self.layers)) :
-            self.parameters['W' + str(i)] = self.parameters['W' + str(i)] - self.learning_rate * self.cache['dW' + str(i)]
-            self.parameters['b' + str(i)] = self.parameters['b' + str(i)] - self.learning_rate * self.cache['db' + str(i)]
+            if self.momentum or self.rms :
+                dW_factor = 1
+                db_factor = 1
+                if self.momentum :
+                    self.cache['VdW' + str(i)] = self.beta_1 * self.cache['VdW' + str(i)] + (1 - self.beta_1) * self.cache['dW' + str(i)]
+                    dW_factor *= self.cache['VdW' + str(i)] / (1 - self.beta_1 ** (e + 1))
+                    self.cache['Vdb' + str(i)] = self.beta_1 * self.cache['Vdb' + str(i)] + (1 - self.beta_1) * self.cache['db' + str(i)]
+                    db_factor *= self.cache['Vdb' + str(i)] / (1 - self.beta_1 ** (e + 1))
+                if self.rms :
+                    self.cache['SdW' + str(i)] = self.beta_2 * self.cache['SdW' + str(i)] + (1 - self.beta_2) * np.power(self.cache['dW' + str(i)], 2)
+                    dW_factor *= 1 / (np.sqrt(self.cache['SdW' + str(i)] / (1 - self.beta_2 ** (e + 1))) + self.epsilon)
+                    self.cache['Sdb' + str(i)] = self.beta_2 * self.cache['Sdb' + str(i)] + (1 - self.beta_2) * np.power(self.cache['db' + str(i)], 2)
+                    db_factor *= 1 / (np.sqrt(self.cache['Sdb' + str(i)] / (1 - self.beta_2 ** (e + 1))) + self.epsilon)
+                self.parameters['W' + str(i)] = self.parameters['W' + str(i)] - self.learning_rate * dW_factor
+                self.parameters['b' + str(i)] = self.parameters['b' + str(i)] - self.learning_rate * db_factor
+            else :
+                self.parameters['W' + str(i)] = self.parameters['W' + str(i)] - self.learning_rate * self.cache['dW' + str(i)]
+                self.parameters['b' + str(i)] = self.parameters['b' + str(i)] - self.learning_rate * self.cache['db' + str(i)]
 
     def cost(self) :
         C = np.sum((self.cache['Y'] * np.log(self.cache['A' + str(len(self.layers) - 1)])) + ((1 - self.cache['Y']) * np.log(1 - self.cache['A' + str(len(self.layers) - 1)])))
@@ -102,45 +132,52 @@ class dnn :
 
         return L
 
-    def train(self, iter=1000, params={}) :
+    def train(self, epoch=1000, params={}) :
         self.initialize(params=params)
 
+        # sorting out some prerequisites
+        if self.adam :
+            self.momentum = True
+            self.rms = True
+
         if self.mini_batch :
-            epoch = iter * math.ceil(self.X.shape[1] / self.batch_size)
+            iter = epoch * math.ceil(self.X.shape[1] / self.batch_size)
         else :
-            epoch = iter
+            iter = epoch
             self.cache['A0'] = self.X
             self.cache['Y'] = self.Y
 
-        for i in range(iter) :
+        for e in range(epoch) :
             # mini batch enabled
             if self.mini_batch :
                 permutation = list(np.random.permutation(self.X.shape[1]))
                 shuffled_X = self.X[:, permutation]
                 shuffled_Y = self.Y[:, permutation]
-                epochs_per_iter = math.ceil(self.X.shape[1] / self.batch_size)
-                for k in range(0, epochs_per_iter) :
-                    mini_batch_X = shuffled_X[:, k * self.batch_size : (k + 1) * self.batch_size]
-                    mini_batch_Y = shuffled_Y[:, k * self.batch_size : (k + 1) * self.batch_size]
-                    self.m = mini_batch_X.shape[1]
-                    self.cache['A0'] = mini_batch_X
-                    self.cache['Y'] = mini_batch_Y
+                iters_per_epoch = math.ceil(self.X.shape[1] / self.batch_size)
+                for k in range(iters_per_epoch) :
+                    i = e * iters_per_epoch + k
+                    X_batch = shuffled_X[:, k * self.batch_size : (k + 1) * self.batch_size]
+                    Y_batch = shuffled_Y[:, k * self.batch_size : (k + 1) * self.batch_size]
+                    self.m = X_batch.shape[1]
+                    self.cache['A0'] = X_batch
+                    self.cache['Y'] = Y_batch
                     #foward prop
-                    self.forward_prop()
+                    self.forward_prop(i)
                     #backward prop
-                    self.backward_prop()
+                    self.backward_prop(i)
             # mini batch disabled
             else :
+                i = e
                 self.m = self.X.shape[1]
                 #foward prop
-                self.forward_prop()
+                self.forward_prop(i)
                 #backward prop
-                self.backward_prop()
+                self.backward_prop(i)
 
-            if i % (iter // 10) == 0 and self.verbose :
+            if self.verbose and e % (epoch // self.verbose_int) == 0 :
                 L = self.cost()
-                self.costs[i] = L
-                print('Cost after ' + str(i) + ' iters: ' + str(L))
+                self.costs[e] = L
+                print('Cost after ' + str(e) + ' epochs: ' + str(L))
 
         return self.parameters
 
