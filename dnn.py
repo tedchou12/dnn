@@ -181,5 +181,20 @@ class dnn :
 
         return self.parameters
 
+    def predict(self, X='') :
+        A = X
+        for i in range(1, len(self.layers)) :
+            Z = np.dot(self.parameters['W' + str(i)], A) + self.parameters['b' + str(i)]
+            if self.layers[i]['activation'] == 'relu' :
+                A = relu(Z)[0]
+            elif self.layers[i]['activation'] == 'leaky_relu' :
+                A = leaky_relu(Z)[0]
+            elif self.layers[i]['activation'] == 'tanh' :
+                A = tanh(Z)[0]
+            else :
+                A = sigmoid(Z)[0]
+
+        return A
+
 if __name__ == '__main__':
     nn = nn(np.array([]), np.array([]))
