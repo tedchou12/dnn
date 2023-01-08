@@ -1,5 +1,5 @@
 import numpy as np
-from .utils import sigmoid, sigmoid_backward, relu, relu_backward, leaky_relu, leaky_relu_backward, tanh, tanh_backward
+from .utils import sigmoid, sigmoid_backward, relu, relu_backward, leaky_relu, leaky_relu_backward, tanh, tanh_backward, softmax, softmax_backward
 import math
 
 class dnn :
@@ -37,7 +37,7 @@ class dnn :
         self.Y = Y
         self.nx = X.shape[0]
         self.layers[0]['size'] = self.nx
-        self.initial_factor = 0
+        self.initial_factor = 0.5
         np.random.seed(3)
 
     def add_layer(self, node_size=3, activation='relu') :
@@ -70,6 +70,8 @@ class dnn :
                 self.cache['A' + str(i)] = leaky_relu(self.cache['Z' + str(i)])[0]
             elif self.layers[i]['activation'] == 'tanh' :
                 self.cache['A' + str(i)] = tanh(self.cache['Z' + str(i)])[0]
+            elif self.layers[i]['activation'] == 'softmax' :
+                self.cache['A' + str(i)] = softmax(self.cache['Z' + str(i)])[0]
             else :
                 self.cache['A' + str(i)] = sigmoid(self.cache['Z' + str(i)])[0]
             if self.dropout and 'D' + str(i) in self.keep_probs :
@@ -93,6 +95,8 @@ class dnn :
                 self.cache['dZ' + str(i)] = leaky_relu_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
             elif self.layers[i]['activation'] == 'tanh' :
                 self.cache['dZ' + str(i)] = tanh_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
+            elif self.layers[i]['activation'] == 'softmax' :
+                self.cache['dZ' + str(i)] = softmax_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
             else :
                 self.cache['dZ' + str(i)] = sigmoid_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
 
@@ -123,7 +127,10 @@ class dnn :
                 self.parameters['b' + str(i)] = self.parameters['b' + str(i)] - self.learning_rate * self.cache['db' + str(i)]
 
     def cost(self) :
-        C = np.sum((self.cache['Y'] * np.log(self.cache['A' + str(len(self.layers) - 1)])) + ((1 - self.cache['Y']) * np.log(1 - self.cache['A' + str(len(self.layers) - 1)])))
+        if self.Y.shape[0] > 1 :
+            C = np.sum((self.cache['Y'] * np.log(self.cache['A' + str(len(self.layers) - 1)])))
+        else :
+            C = np.sum((self.cache['Y'] * np.log(self.cache['A' + str(len(self.layers) - 1)])) + ((1 - self.cache['Y']) * np.log(1 - self.cache['A' + str(len(self.layers) - 1)])))
         L = (-1 / self.m) * C
         if self.regularization :
             for j in range(1, len(self.layers)) :
@@ -191,6 +198,8 @@ class dnn :
                 A = leaky_relu(Z)[0]
             elif self.layers[i]['activation'] == 'tanh' :
                 A = tanh(Z)[0]
+            elif self.layers[i]['activation'] == 'softmax' :
+                A = softmax(Z)[0]
             else :
                 A = sigmoid(Z)[0]
 

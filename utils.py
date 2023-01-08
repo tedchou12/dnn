@@ -34,6 +34,24 @@ def tanh(Z):
 
     return A, cache
 
+def softmax(Z):
+    """
+    Implements the sigmoid activation in numpy
+
+    Arguments:
+    Z -- numpy array of any shape
+
+    Returns:
+    A -- output of sigmoid(z), same shape as Z
+    cache -- returns Z as well, useful during backpropagation
+    """
+
+    t = np.exp(Z - np.max(Z))
+    A = t / np.sum(t, axis=0, keepdims=True)
+    cache = Z
+
+    return A, cache
+
 def relu(Z):
     """
     Implement the RELU function.
@@ -134,6 +152,31 @@ def tanh_backward(dA, cache):
 
     s = np.tanh(Z)
     dZ = dA * (1 - np.power(s, 2))
+
+    assert (dZ.shape == Z.shape)
+
+    return dZ
+
+
+def softmax_backward(dA, cache):
+    """
+    Implement the backward propagation for a single SIGMOID unit.
+
+    Arguments:
+    dA -- post-activation gradient, of any shape
+    cache -- 'Z' where we store for computing backward propagation efficiently
+
+    Returns:
+    dZ -- Gradient of the cost with respect to Z
+    """
+
+    Z = cache
+    n, m = Z.shape
+    A = softmax(Z)[0].T
+    tensor1 = np.einsum('ij,ik->ijk', A, A)
+    tensor2 = np.einsum('ij,jk->ijk', A, np.eye(n, n))
+    dSoftmax = tensor2 - tensor1
+    dZ = np.einsum('ijk,ik->ij', dSoftmax, dA.T).T
 
     assert (dZ.shape == Z.shape)
 
