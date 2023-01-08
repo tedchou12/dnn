@@ -14,13 +14,17 @@ obj.learning_rate = 0.05
 # output cost in console
 obj.verbose = True
 obj.verbose_int = 100
-# momentum, rms or adam
+# momentum, rms or adam optimization methods
 obj.adam = True
 # start adding linear layer and activation function
 obj.add_layer(node_size=5, activation='leaky_relu')
 obj.add_layer(node_size=3, activation='softmax')
 # start training! params will be the trained parameters
 params = obj.train(1000)
+# costs
+costs = obj.costs
+#if you want to plot out the costs, adjust verbose_int if needed.
+# plt.plot(obj.costs.keys(), obj.costs.values())
 # predict:
 result = obj.predict(X)
 ```
