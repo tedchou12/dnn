@@ -14,6 +14,7 @@ class dnn :
     # batch normalization params
     normalization = False
     norm_epsilon = 1e-5
+    norm_momentum = 0.9
     # batch
     mini_batch = False
     batch_size = 500
@@ -60,6 +61,8 @@ class dnn :
                 self.cache['VdW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
                 self.cache['SdW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
                 if self.normalization :
+                    self.cache['mu' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                    self.cache['sigma2' + str(i)] = np.zeros((self.layers[i]['size'], 1))
                     self.parameters['beta' + str(i)] = np.random.randn(self.layers[i]['size'], 1)
                     self.cache['dbeta' + str(i)] = np.zeros((self.layers[i]['size'], 1))
                     self.cache['Vdbeta' + str(i)] = np.zeros((self.layers[i]['size'], 1))
@@ -78,8 +81,8 @@ class dnn :
         for i in range(1, len(self.layers)) :
             if self.normalization :
                 self.cache['Z' + str(i)] = np.dot(self.parameters['W' + str(i)], self.cache['A' + str(i - 1)])
-                self.cache['mu' + str(i)] = (1 / self.m) * np.sum(self.cache['Z' + str(i)], axis=1, keepdims=True)
-                self.cache['sigma2' + str(i)] = (1 / self.m) * np.sum(np.power(self.cache['Z' + str(i)] - self.cache['mu' + str(i)], 2), axis=1, keepdims=True)
+                self.cache['mu' + str(i)] = (self.norm_momentum * self.cache['mu' + str(i)]) + (1 - self.norm_momentum) * ((1 / self.m) * np.sum(self.cache['Z' + str(i)], axis=1, keepdims=True))
+                self.cache['sigma2' + str(i)] = (self.norm_momentum * self.cache['sigma2' + str(i)]) + (1 - self.norm_momentum) * ((1 / self.m) * np.sum(np.power(self.cache['Z' + str(i)] - self.cache['mu' + str(i)], 2), axis=1, keepdims=True))
                 self.cache['Znorm' + str(i)] = (self.cache['Z' + str(i)] - self.cache['mu' + str(i)]) / np.sqrt(self.cache['sigma2' + str(i)] + self.norm_epsilon)
                 self.cache['Ztilde' + str(i)] = self.parameters['gamma' + str(i)] * self.cache['Znorm' + str(i)] + self.parameters['beta' + str(i)]
             else :
