@@ -13,7 +13,7 @@ class dnn :
     cache = {}
     # batch normalization params
     normalization = False
-    norm_epsilon = 1e-8
+    norm_epsilon = 1e-5
     # batch
     mini_batch = False
     batch_size = 500
@@ -156,7 +156,12 @@ class dnn :
             if self.normalization :
                 self.cache['dbeta' + str(i)] = 1 / self.m * np.sum(self.cache['dZtilde' + str(i)], axis=1, keepdims=True)
                 self.cache['dgamma' + str(i)] = 1 / self.m * np.sum(self.cache['dZtilde' + str(i)] * self.cache['Znorm' + str(i)], axis=1, keepdims=True)
-                self.cache['dW' + str(i)] = 1 / self.m * np.dot(self.cache['dZtilde' + str(i)], self.cache['A' + str(i - 1)].T) * self.parameters['gamma' + str(i)] * (1 / np.sqrt(self.cache['sigma2' + str(i)] + self.norm_epsilon))
+                # self.cache['dZnorm' + str(i)] = self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)] * (1 / np.sqrt(self.cache['sigma2' + str(i)] + self.norm_epsilon))
+                # self.cache['dmu' + str(i)] = - (np.sum(self.cache['dZnorm' + str(i)], axis=1, keepdims=True) + (2 / self.m) * np.sum(self.cache['Znorm' + str(i)], axis=1, keepdims=True))
+                # self.cache['dsigma2' + str(i)] = np.sum(self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)] * (self.cache['Z' + str(i)] - self.cache['mu' + str(i)]) * (- np.power(np.sqrt(self.cache['sigma2' + str(i)] + self.norm_epsilon), -2)), axis=1, keepdims=True) / 2 / np.sqrt(self.cache['sigma2' + str(i)] + self.norm_epsilon)
+                # self.cache['dZ' + str(i)] = 1 / self.m * self.cache['dZnorm' + str(i)] + (self.cache['dsigma2' + str(i)] * 2 * (self.cache['Z' + str(i)] - self.cache['mu' + str(i)]) + self.cache['dmu' + str(i)])
+                self.cache['dZ' + str(i)] = 1 / self.m / np.sqrt(self.cache['sigma2' + str(i)] + self.norm_epsilon) * (self.m * self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)] - np.sum(self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)], axis=1, keepdims=True) - (self.cache['Znorm' + str(i)] * np.sum(self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)] * self.cache['Znorm' + str(i)], axis=1, keepdims=True)))
+                self.cache['dW' + str(i)] = 1 / self.m * np.dot(self.cache['dZ' + str(i)], self.cache['A' + str(i - 1)].T)
             else :
                 self.cache['db' + str(i)] = 1 / self.m * np.sum(self.cache['dZ' + str(i)], axis=1, keepdims=True)
                 self.cache['dW' + str(i)] = 1 / self.m * np.dot(self.cache['dZ' + str(i)], self.cache['A' + str(i - 1)].T)
