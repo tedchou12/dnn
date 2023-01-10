@@ -8,18 +8,22 @@ class dnn :
     layers = [{'size': 0}]
     m = 500
     nx = 0
+    # params
+    parameters = {}
+    cache = {}
+    # batch normalization params
+    normalization = False
+    norm_epsilon = 1e-5
+    norm_momentum = 0.9
+    # batch
+    mini_batch = False
+    batch_size = 500
     # regularization hyper params
     regularization = False
     lambd = 0.1
     dropout = False
     keep_prob = 1
     keep_probs = {}
-    # params
-    parameters = {}
-    cache = {}
-    # batch
-    mini_batch = False
-    batch_size = 500
     # optimization
     adam = False
     momentum = False
@@ -56,24 +60,58 @@ class dnn :
                 self.cache['dW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
                 self.cache['VdW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
                 self.cache['SdW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
-                self.parameters['b' + str(i)] = np.random.randn(self.layers[i]['size'], 1)
-                self.cache['db' + str(i)] = np.zeros((self.layers[i]['size'], 1))
-                self.cache['Vdb' + str(i)] = np.zeros((self.layers[i]['size'], 1))
-                self.cache['Sdb' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                if self.normalization :
+                    self.parameters['mu' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                    self.parameters['sigma2' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                    self.parameters['beta' + str(i)] = np.random.randn(self.layers[i]['size'], 1)
+                    self.cache['dbeta' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                    self.cache['Vdbeta' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                    self.cache['Sdbeta' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                    self.parameters['gamma' + str(i)] = np.random.randn(self.layers[i]['size'], 1)
+                    self.cache['dgamma' + str(i)] = np.ones((self.layers[i]['size'], 1))
+                    self.cache['Vdgamma' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                    self.cache['Sdgamma' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                else :
+                    self.parameters['b' + str(i)] = np.random.randn(self.layers[i]['size'], 1)
+                    self.cache['db' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                    self.cache['Vdb' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                    self.cache['Sdb' + str(i)] = np.zeros((self.layers[i]['size'], 1))
 
     def forward_prop(self, e) :
         for i in range(1, len(self.layers)) :
-            self.cache['Z' + str(i)] = np.dot(self.parameters['W' + str(i)], self.cache['A' + str(i - 1)]) + self.parameters['b' + str(i)]
-            if self.layers[i]['activation'] == 'relu' :
-                self.cache['A' + str(i)] = relu(self.cache['Z' + str(i)])[0]
-            elif self.layers[i]['activation'] == 'leaky_relu' :
-                self.cache['A' + str(i)] = leaky_relu(self.cache['Z' + str(i)])[0]
-            elif self.layers[i]['activation'] == 'tanh' :
-                self.cache['A' + str(i)] = tanh(self.cache['Z' + str(i)])[0]
-            elif self.layers[i]['activation'] == 'softmax' :
-                self.cache['A' + str(i)] = softmax(self.cache['Z' + str(i)])[0]
+            if self.normalization :
+                self.cache['Z' + str(i)] = np.dot(self.parameters['W' + str(i)], self.cache['A' + str(i - 1)])
+                self.parameters['mu' + str(i)] = (self.norm_momentum * self.parameters['mu' + str(i)]) + (1 - self.norm_momentum) * ((1 / self.m) * np.sum(self.cache['Z' + str(i)], axis=1, keepdims=True))
+                self.parameters['sigma2' + str(i)] = (self.norm_momentum * self.parameters['sigma2' + str(i)]) + (1 - self.norm_momentum) * ((1 / self.m) * np.sum(np.power(self.cache['Z' + str(i)] - self.parameters['mu' + str(i)], 2), axis=1, keepdims=True))
+                self.cache['Znorm' + str(i)] = (self.cache['Z' + str(i)] - self.parameters['mu' + str(i)]) / np.sqrt(self.parameters['sigma2' + str(i)] + self.norm_epsilon)
+                self.cache['Ztilde' + str(i)] = self.parameters['gamma' + str(i)] * self.cache['Znorm' + str(i)] + self.parameters['beta' + str(i)]
             else :
-                self.cache['A' + str(i)] = sigmoid(self.cache['Z' + str(i)])[0]
+                self.cache['Z' + str(i)] = np.dot(self.parameters['W' + str(i)], self.cache['A' + str(i - 1)]) + self.parameters['b' + str(i)]
+            if self.layers[i]['activation'] == 'relu' :
+                if self.normalization :
+                    self.cache['A' + str(i)] = relu(self.cache['Ztilde' + str(i)])[0]
+                else :
+                    self.cache['A' + str(i)] = relu(self.cache['Z' + str(i)])[0]
+            elif self.layers[i]['activation'] == 'leaky_relu' :
+                if self.normalization :
+                    self.cache['A' + str(i)] = leaky_relu(self.cache['Ztilde' + str(i)])[0]
+                else :
+                    self.cache['A' + str(i)] = leaky_relu(self.cache['Z' + str(i)])[0]
+            elif self.layers[i]['activation'] == 'tanh' :
+                if self.normalization :
+                    self.cache['A' + str(i)] = tanh(self.cache['Ztilde' + str(i)])[0]
+                else :
+                    self.cache['A' + str(i)] = tanh(self.cache['Z' + str(i)])[0]
+            elif self.layers[i]['activation'] == 'softmax' :
+                if self.normalization :
+                    self.cache['A' + str(i)] = softmax(self.cache['Ztilde' + str(i)])[0]
+                else :
+                    self.cache['A' + str(i)] = softmax(self.cache['Z' + str(i)])[0]
+            else :
+                if self.normalization :
+                    self.cache['A' + str(i)] = sigmoid(self.cache['Ztilde' + str(i)])[0]
+                else :
+                    self.cache['A' + str(i)] = sigmoid(self.cache['Z' + str(i)])[0]
             if self.dropout and 'D' + str(i) in self.keep_probs :
                 self.cache['D' + str(i)] = np.random.rand(self.cache['A' + str(i)].shape[0], self.cache['A' + str(i)].shape[1])
                 self.cache['D' + str(i)] = self.cache['D' + str(i)] < self.keep_probs['D' + str(i)]
@@ -85,46 +123,95 @@ class dnn :
             if i == len(self.layers) - 1 :
                 self.cache['dA' + str(i)] = - (self.cache['Y'] / self.cache['A' + str(i)]) + ((1 - self.cache['Y']) / (1 - self.cache['A' + str(i)]))
             else :
-                self.cache['dA' + str(i)] = np.dot(self.parameters['W' + str(i + 1)].T, self.cache['dZ' + str(i + 1)])
+                if self.normalization :
+                    self.cache['dA' + str(i)] = np.dot(self.parameters['W' + str(i + 1)].T, self.cache['dZtilde' + str(i + 1)])
+                else :
+                    self.cache['dA' + str(i)] = np.dot(self.parameters['W' + str(i + 1)].T, self.cache['dZ' + str(i + 1)])
             if self.dropout and 'D' + str(i) in self.keep_probs :
                 self.cache['dA' + str(i)] = self.cache['dA' + str(i)] * self.cache['D' + str(i)] / self.keep_probs['D' + str(i)]
 
             if self.layers[i]['activation'] == 'relu' :
-                self.cache['dZ' + str(i)] = relu_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
+                if self.normalization :
+                    self.cache['dZtilde' + str(i)] = relu_backward(self.cache['dA' + str(i)], self.cache['Ztilde' + str(i)])
+                else :
+                    self.cache['dZ' + str(i)] = relu_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
             elif self.layers[i]['activation'] == 'leaky_relu' :
-                self.cache['dZ' + str(i)] = leaky_relu_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
+                if self.normalization :
+                    self.cache['dZtilde' + str(i)] = leaky_relu_backward(self.cache['dA' + str(i)], self.cache['Ztilde' + str(i)])
+                else :
+                    self.cache['dZ' + str(i)] = leaky_relu_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
             elif self.layers[i]['activation'] == 'tanh' :
-                self.cache['dZ' + str(i)] = tanh_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
+                if self.normalization :
+                    self.cache['dZtilde' + str(i)] = tanh_backward(self.cache['dA' + str(i)], self.cache['Ztilde' + str(i)])
+                else :
+                    self.cache['dZ' + str(i)] = tanh_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
             elif self.layers[i]['activation'] == 'softmax' :
-                self.cache['dZ' + str(i)] = softmax_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
+                if self.normalization :
+                    self.cache['dZtilde' + str(i)] = softmax_backward(self.cache['dA' + str(i)], self.cache['Ztilde' + str(i)])
+                else :
+                    self.cache['dZ' + str(i)] = softmax_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
             else :
-                self.cache['dZ' + str(i)] = sigmoid_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
+                if self.normalization :
+                    self.cache['dZtilde' + str(i)] = sigmoid_backward(self.cache['dA' + str(i)], self.cache['Ztilde' + str(i)])
+                else :
+                    self.cache['dZ' + str(i)] = sigmoid_backward(self.cache['dA' + str(i)], self.cache['Z' + str(i)])
 
-            self.cache['dW' + str(i)] = 1 / self.m * np.dot(self.cache['dZ' + str(i)], self.cache['A' + str(i - 1)].T)
+            if self.normalization :
+                self.cache['dbeta' + str(i)] = 1 / self.m * np.sum(self.cache['dZtilde' + str(i)], axis=1, keepdims=True)
+                self.cache['dgamma' + str(i)] = 1 / self.m * np.sum(self.cache['dZtilde' + str(i)] * self.cache['Znorm' + str(i)], axis=1, keepdims=True)
+                # t = 1 / np.sqrt(self.parameters['sigma2' + str(i)] + self.norm_epsilon)
+                # self.cache['dZ' + str(i)] = (self.parameters['gamma' + str(i)] * t / self.m) * (self.m * self.cache['dZtilde' + str(i)] - np.sum(self.cache['dZtilde' + str(i)], axis=1, keepdims=True) - t**2 * (self.cache['Z' + str(i)] - self.parameters['mu' + str(i)]) * np.sum(self.cache['dZtilde' + str(i)] * (self.cache['Z' + str(i)] - self.parameters['mu' + str(i)]), axis=1, keepdims=True))
+                self.cache['dZ' + str(i)] = 1 / self.m / np.sqrt(self.parameters['sigma2' + str(i)] + self.norm_epsilon) * (self.m * self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)] - np.sum(self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)], axis=1, keepdims=True) - (self.cache['Znorm' + str(i)] * np.sum(self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)] * self.cache['Znorm' + str(i)], axis=1, keepdims=True)))
+                self.cache['dW' + str(i)] = 1 / self.m * np.dot(self.cache['dZ' + str(i)], self.cache['A' + str(i - 1)].T)
+            else :
+                self.cache['db' + str(i)] = 1 / self.m * np.sum(self.cache['dZ' + str(i)], axis=1, keepdims=True)
+                self.cache['dW' + str(i)] = 1 / self.m * np.dot(self.cache['dZ' + str(i)], self.cache['A' + str(i - 1)].T)
+
             if self.regularization :
                 self.cache['dW' + str(i)] = self.cache['dW' + str(i)] + self.lambd / self.m * self.parameters['W' + str(i)]
-            self.cache['db' + str(i)] = 1 / self.m * np.sum(self.cache['dZ' + str(i)], axis=1, keepdims=True)
 
         #update
         for i in range(1, len(self.layers)) :
             if self.momentum or self.rms :
                 dW_factor = 1
+                dbeta_factor = 1
+                dgamma_factor = 1
                 db_factor = 1
                 if self.momentum :
                     self.cache['VdW' + str(i)] = self.beta_1 * self.cache['VdW' + str(i)] + (1 - self.beta_1) * self.cache['dW' + str(i)]
                     dW_factor *= self.cache['VdW' + str(i)] / (1 - self.beta_1 ** (e + 1))
-                    self.cache['Vdb' + str(i)] = self.beta_1 * self.cache['Vdb' + str(i)] + (1 - self.beta_1) * self.cache['db' + str(i)]
-                    db_factor *= self.cache['Vdb' + str(i)] / (1 - self.beta_1 ** (e + 1))
+                    if self.normalization :
+                        self.cache['Vdbeta' + str(i)] = self.beta_1 * self.cache['Vdbeta' + str(i)] + (1 - self.beta_1) * self.cache['dbeta' + str(i)]
+                        dbeta_factor *= self.cache['Vdbeta' + str(i)] / (1 - self.beta_1 ** (e + 1))
+                        self.cache['Vdgamma' + str(i)] = self.beta_1 * self.cache['Vdgamma' + str(i)] + (1 - self.beta_1) * self.cache['Vdgamma' + str(i)]
+                        dgamma_factor *= self.cache['Vdgamma' + str(i)] / (1 - self.beta_1 ** (e + 1))
+                    else :
+                        self.cache['Vdb' + str(i)] = self.beta_1 * self.cache['Vdb' + str(i)] + (1 - self.beta_1) * self.cache['db' + str(i)]
+                        db_factor *= self.cache['Vdb' + str(i)] / (1 - self.beta_1 ** (e + 1))
                 if self.rms :
                     self.cache['SdW' + str(i)] = self.beta_2 * self.cache['SdW' + str(i)] + (1 - self.beta_2) * np.power(self.cache['dW' + str(i)], 2)
                     dW_factor *= 1 / (np.sqrt(self.cache['SdW' + str(i)] / (1 - self.beta_2 ** (e + 1))) + self.epsilon)
-                    self.cache['Sdb' + str(i)] = self.beta_2 * self.cache['Sdb' + str(i)] + (1 - self.beta_2) * np.power(self.cache['db' + str(i)], 2)
-                    db_factor *= 1 / (np.sqrt(self.cache['Sdb' + str(i)] / (1 - self.beta_2 ** (e + 1))) + self.epsilon)
+                    if self.normalization :
+                        self.cache['Sdbeta' + str(i)] = self.beta_2 * self.cache['Sdbeta' + str(i)] + (1 - self.beta_2) * np.power(self.cache['dbeta' + str(i)], 2)
+                        dbeta_factor *= 1 / (np.sqrt(self.cache['Sdbeta' + str(i)] / (1 - self.beta_2 ** (e + 1))) + self.epsilon)
+                        self.cache['Sdgamma' + str(i)] = self.beta_2 * self.cache['Sdgamma' + str(i)] + (1 - self.beta_2) * np.power(self.cache['dgamma' + str(i)], 2)
+                        dgamma_factor *= 1 / (np.sqrt(self.cache['Sdgamma' + str(i)] / (1 - self.beta_2 ** (e + 1))) + self.epsilon)
+                    else :
+                        self.cache['Sdb' + str(i)] = self.beta_2 * self.cache['Sdb' + str(i)] + (1 - self.beta_2) * np.power(self.cache['db' + str(i)], 2)
+                        db_factor *= 1 / (np.sqrt(self.cache['Sdb' + str(i)] / (1 - self.beta_2 ** (e + 1))) + self.epsilon)
                 self.parameters['W' + str(i)] = self.parameters['W' + str(i)] - self.learning_rate * dW_factor
-                self.parameters['b' + str(i)] = self.parameters['b' + str(i)] - self.learning_rate * db_factor
+                if self.normalization :
+                    self.parameters['beta' + str(i)] = self.parameters['beta' + str(i)] - self.learning_rate * dbeta_factor
+                    self.parameters['gamma' + str(i)] = self.parameters['gamma' + str(i)] - self.learning_rate * dgamma_factor
+                else :
+                    self.parameters['b' + str(i)] = self.parameters['b' + str(i)] - self.learning_rate * db_factor
             else :
                 self.parameters['W' + str(i)] = self.parameters['W' + str(i)] - self.learning_rate * self.cache['dW' + str(i)]
-                self.parameters['b' + str(i)] = self.parameters['b' + str(i)] - self.learning_rate * self.cache['db' + str(i)]
+                if self.normalization :
+                    self.parameters['beta' + str(i)] = self.parameters['beta' + str(i)] - self.learning_rate * self.cache['dbeta' + str(i)]
+                    self.parameters['gamma' + str(i)] = self.parameters['gamma' + str(i)] - self.learning_rate * self.cache['dgamma' + str(i)]
+                else :
+                    self.parameters['b' + str(i)] = self.parameters['b' + str(i)] - self.learning_rate * self.cache['db' + str(i)]
 
     def cost(self) :
         if self.Y.shape[0] > 1 :
@@ -191,7 +278,12 @@ class dnn :
     def predict(self, X='') :
         A = X
         for i in range(1, len(self.layers)) :
-            Z = np.dot(self.parameters['W' + str(i)], A) + self.parameters['b' + str(i)]
+            if self.normalization :
+                Z = np.dot(self.parameters['W' + str(i)], A)
+                Z = (Z - self.parameters['mu' + str(i)]) / np.sqrt(self.parameters['sigma2' + str(i)] + self.norm_epsilon)
+                Z = self.parameters['gamma' + str(i)] * Z + self.parameters['beta' + str(i)]
+            else :
+                Z = np.dot(self.parameters['W' + str(i)], A) + self.parameters['b' + str(i)]
             if self.layers[i]['activation'] == 'relu' :
                 A = relu(Z)[0]
             elif self.layers[i]['activation'] == 'leaky_relu' :
