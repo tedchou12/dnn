@@ -1,6 +1,7 @@
 import numpy as np
 from .utils import sigmoid, sigmoid_backward, relu, relu_backward, leaky_relu, leaky_relu_backward, tanh, tanh_backward, softmax, softmax_backward
 import math
+import pickle
 
 class dnn :
     # hyper parameters
@@ -35,6 +36,8 @@ class dnn :
     verbose = False
     verbose_int = 10
     costs = {}
+    save_path = 'temp.pkl'
+    auto_save = False
 
     def __init__(self, X='', Y='') :
         self.X = X
@@ -269,6 +272,8 @@ class dnn :
                 self.backward_prop(i)
 
             if self.verbose and e % (epoch // self.verbose_int) == 0 :
+                if self.auto_save :
+                    self.save()
                 L = self.cost()
                 self.costs[e] = L
                 print('Cost after ' + str(e) + ' epochs: ' + str(L))
@@ -296,6 +301,19 @@ class dnn :
                 A = sigmoid(Z)[0]
 
         return A
+
+    def save(self) :
+        save_dict = {'parameters': self.parameters, 'layers': self.layers}
+        file = open(self.save_path, 'wb')
+        pickle.dump(save_dict, file)
+        file.close()
+
+    def load(self) :
+        file = open(self.save_path, 'rb')
+        save_dict = pickle.load(file)
+        file.close()
+        self.parameters = save_dict['parameters']
+        self.layers = save_dict['layers']
 
 if __name__ == '__main__':
     nn = nn(np.array([]), np.array([]))
