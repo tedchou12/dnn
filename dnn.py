@@ -61,8 +61,8 @@ class dnn :
                 self.cache['VdW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
                 self.cache['SdW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
                 if self.normalization :
-                    self.cache['mu' + str(i)] = np.zeros((self.layers[i]['size'], 1))
-                    self.cache['sigma2' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                    self.parameters['mu' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                    self.parameters['sigma2' + str(i)] = np.zeros((self.layers[i]['size'], 1))
                     self.parameters['beta' + str(i)] = np.random.randn(self.layers[i]['size'], 1)
                     self.cache['dbeta' + str(i)] = np.zeros((self.layers[i]['size'], 1))
                     self.cache['Vdbeta' + str(i)] = np.zeros((self.layers[i]['size'], 1))
@@ -81,9 +81,9 @@ class dnn :
         for i in range(1, len(self.layers)) :
             if self.normalization :
                 self.cache['Z' + str(i)] = np.dot(self.parameters['W' + str(i)], self.cache['A' + str(i - 1)])
-                self.cache['mu' + str(i)] = (self.norm_momentum * self.cache['mu' + str(i)]) + (1 - self.norm_momentum) * ((1 / self.m) * np.sum(self.cache['Z' + str(i)], axis=1, keepdims=True))
-                self.cache['sigma2' + str(i)] = (self.norm_momentum * self.cache['sigma2' + str(i)]) + (1 - self.norm_momentum) * ((1 / self.m) * np.sum(np.power(self.cache['Z' + str(i)] - self.cache['mu' + str(i)], 2), axis=1, keepdims=True))
-                self.cache['Znorm' + str(i)] = (self.cache['Z' + str(i)] - self.cache['mu' + str(i)]) / np.sqrt(self.cache['sigma2' + str(i)] + self.norm_epsilon)
+                self.parameters['mu' + str(i)] = (self.norm_momentum * self.parameters['mu' + str(i)]) + (1 - self.norm_momentum) * ((1 / self.m) * np.sum(self.cache['Z' + str(i)], axis=1, keepdims=True))
+                self.parameters['sigma2' + str(i)] = (self.norm_momentum * self.parameters['sigma2' + str(i)]) + (1 - self.norm_momentum) * ((1 / self.m) * np.sum(np.power(self.cache['Z' + str(i)] - self.parameters['mu' + str(i)], 2), axis=1, keepdims=True))
+                self.cache['Znorm' + str(i)] = (self.cache['Z' + str(i)] - self.parameters['mu' + str(i)]) / np.sqrt(self.parameters['sigma2' + str(i)] + self.norm_epsilon)
                 self.cache['Ztilde' + str(i)] = self.parameters['gamma' + str(i)] * self.cache['Znorm' + str(i)] + self.parameters['beta' + str(i)]
             else :
                 self.cache['Z' + str(i)] = np.dot(self.parameters['W' + str(i)], self.cache['A' + str(i - 1)]) + self.parameters['b' + str(i)]
@@ -159,11 +159,9 @@ class dnn :
             if self.normalization :
                 self.cache['dbeta' + str(i)] = 1 / self.m * np.sum(self.cache['dZtilde' + str(i)], axis=1, keepdims=True)
                 self.cache['dgamma' + str(i)] = 1 / self.m * np.sum(self.cache['dZtilde' + str(i)] * self.cache['Znorm' + str(i)], axis=1, keepdims=True)
-                # self.cache['dZnorm' + str(i)] = self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)] * (1 / np.sqrt(self.cache['sigma2' + str(i)] + self.norm_epsilon))
-                # self.cache['dmu' + str(i)] = - (np.sum(self.cache['dZnorm' + str(i)], axis=1, keepdims=True) + (2 / self.m) * np.sum(self.cache['Znorm' + str(i)], axis=1, keepdims=True))
-                # self.cache['dsigma2' + str(i)] = np.sum(self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)] * (self.cache['Z' + str(i)] - self.cache['mu' + str(i)]) * (- np.power(np.sqrt(self.cache['sigma2' + str(i)] + self.norm_epsilon), -2)), axis=1, keepdims=True) / 2 / np.sqrt(self.cache['sigma2' + str(i)] + self.norm_epsilon)
-                # self.cache['dZ' + str(i)] = 1 / self.m * self.cache['dZnorm' + str(i)] + (self.cache['dsigma2' + str(i)] * 2 * (self.cache['Z' + str(i)] - self.cache['mu' + str(i)]) + self.cache['dmu' + str(i)])
-                self.cache['dZ' + str(i)] = 1 / self.m / np.sqrt(self.cache['sigma2' + str(i)] + self.norm_epsilon) * (self.m * self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)] - np.sum(self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)], axis=1, keepdims=True) - (self.cache['Znorm' + str(i)] * np.sum(self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)] * self.cache['Znorm' + str(i)], axis=1, keepdims=True)))
+                # t = 1 / np.sqrt(self.parameters['sigma2' + str(i)] + self.norm_epsilon)
+                # self.cache['dZ' + str(i)] = (self.parameters['gamma' + str(i)] * t / self.m) * (self.m * self.cache['dZtilde' + str(i)] - np.sum(self.cache['dZtilde' + str(i)], axis=1, keepdims=True) - t**2 * (self.cache['Z' + str(i)] - self.parameters['mu' + str(i)]) * np.sum(self.cache['dZtilde' + str(i)] * (self.cache['Z' + str(i)] - self.parameters['mu' + str(i)]), axis=1, keepdims=True))
+                self.cache['dZ' + str(i)] = 1 / self.m / np.sqrt(self.parameters['sigma2' + str(i)] + self.norm_epsilon) * (self.m * self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)] - np.sum(self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)], axis=1, keepdims=True) - (self.cache['Znorm' + str(i)] * np.sum(self.cache['dZtilde' + str(i)] * self.parameters['gamma' + str(i)] * self.cache['Znorm' + str(i)], axis=1, keepdims=True)))
                 self.cache['dW' + str(i)] = 1 / self.m * np.dot(self.cache['dZ' + str(i)], self.cache['A' + str(i - 1)].T)
             else :
                 self.cache['db' + str(i)] = 1 / self.m * np.sum(self.cache['dZ' + str(i)], axis=1, keepdims=True)
@@ -282,7 +280,7 @@ class dnn :
         for i in range(1, len(self.layers)) :
             if self.normalization :
                 Z = np.dot(self.parameters['W' + str(i)], A)
-                Z = (Z - self.cache['mu' + str(i)]) / np.sqrt(self.cache['sigma2' + str(i)] + self.norm_epsilon)
+                Z = (Z - self.parameters['mu' + str(i)]) / np.sqrt(self.parameters['sigma2' + str(i)] + self.norm_epsilon)
                 Z = self.parameters['gamma' + str(i)] * Z + self.parameters['beta' + str(i)]
             else :
                 Z = np.dot(self.parameters['W' + str(i)], A) + self.parameters['b' + str(i)]
