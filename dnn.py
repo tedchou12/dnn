@@ -7,15 +7,13 @@ class dnn :
     # hyper parameters
     learning_rate = 0.05
     layers = [{'size': 0}]
-    m = 500
-    nx = 0
     # params
     parameters = {}
     cache = {}
     # batch normalization params
     normalization = False
     norm_epsilon = 1e-5
-    norm_momentum = 0.9
+    norm_momentum = 0.6
     # batch
     mini_batch = False
     batch_size = 500
@@ -33,52 +31,60 @@ class dnn :
     beta_2 = 0.999
     epsilon = 1e-8
     # others
+    m = 500
+    nx = 0
     verbose = False
     verbose_int = 10
     costs = {}
     save_path = 'temp.pkl'
     auto_save = False
+    initial_factor = 0.1
 
     def __init__(self, X='', Y='') :
         self.X = X
         self.Y = Y
         self.nx = X.shape[0]
         self.layers[0]['size'] = self.nx
-        self.initial_factor = 0.5
-        np.random.seed(3)
+        np.random.seed(1)
 
     def add_layer(self, node_size=3, activation='relu') :
         self.layers.append({'size': node_size, 'activation': activation})
 
     def initialize(self, params={}) :
-        if len(params) > 0 :
-            self.parameters = params
-        else :
-            for i in range(1, len(self.layers)) :
-                if self.initial_factor :
-                    initial_factor = self.initial_factor
-                else :
-                    initial_factor = np.sqrt(1 / self.layers[i-1]['size'])
+        init_param = False
+        if len(self.parameters) == 0 :
+            init_param = True
+
+        for i in range(1, len(self.layers)) :
+            if self.initial_factor :
+                initial_factor = self.initial_factor
+            else :
+                initial_factor = np.sqrt(1 / self.layers[i-1]['size'])
+
+            if init_param :
                 self.parameters['W' + str(i)] = np.random.randn(self.layers[i]['size'], self.layers[i-1]['size']) * initial_factor
-                self.cache['dW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
-                self.cache['VdW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
-                self.cache['SdW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
-                if self.normalization :
+            self.cache['dW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
+            self.cache['VdW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
+            self.cache['SdW' + str(i)] = np.zeros((self.layers[i]['size'], self.layers[i-1]['size']))
+            if self.normalization :
+                if init_param :
                     self.parameters['mu' + str(i)] = np.zeros((self.layers[i]['size'], 1))
                     self.parameters['sigma2' + str(i)] = np.zeros((self.layers[i]['size'], 1))
                     self.parameters['beta' + str(i)] = np.random.randn(self.layers[i]['size'], 1)
-                    self.cache['dbeta' + str(i)] = np.zeros((self.layers[i]['size'], 1))
-                    self.cache['Vdbeta' + str(i)] = np.zeros((self.layers[i]['size'], 1))
-                    self.cache['Sdbeta' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                self.cache['dbeta' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                self.cache['Vdbeta' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                self.cache['Sdbeta' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                if init_param :
                     self.parameters['gamma' + str(i)] = np.random.randn(self.layers[i]['size'], 1)
-                    self.cache['dgamma' + str(i)] = np.ones((self.layers[i]['size'], 1))
-                    self.cache['Vdgamma' + str(i)] = np.zeros((self.layers[i]['size'], 1))
-                    self.cache['Sdgamma' + str(i)] = np.zeros((self.layers[i]['size'], 1))
-                else :
+                self.cache['dgamma' + str(i)] = np.ones((self.layers[i]['size'], 1))
+                self.cache['Vdgamma' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                self.cache['Sdgamma' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+            else :
+                if init_param :
                     self.parameters['b' + str(i)] = np.random.randn(self.layers[i]['size'], 1)
-                    self.cache['db' + str(i)] = np.zeros((self.layers[i]['size'], 1))
-                    self.cache['Vdb' + str(i)] = np.zeros((self.layers[i]['size'], 1))
-                    self.cache['Sdb' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                self.cache['db' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                self.cache['Vdb' + str(i)] = np.zeros((self.layers[i]['size'], 1))
+                self.cache['Sdb' + str(i)] = np.zeros((self.layers[i]['size'], 1))
 
     def forward_prop(self, e) :
         for i in range(1, len(self.layers)) :
@@ -316,4 +322,4 @@ class dnn :
         self.layers = save_dict['layers']
 
 if __name__ == '__main__':
-    nn = nn(np.array([]), np.array([]))
+    obj = dnn(np.array([]), np.array([]))
