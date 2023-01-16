@@ -130,7 +130,12 @@ class dnn :
         for i in range(len(self.layers) - 1, 0, -1) :
             # last layer
             if i == len(self.layers) - 1 :
-                self.cache['dA' + str(i)] = - (self.cache['Y'] / self.cache['A' + str(i)]) + ((1 - self.cache['Y']) / (1 - self.cache['A' + str(i)]))
+                # multiclass classification (usually softmax only)
+                if self.layers[i]['activation'] == 'softmax' :
+                    self.cache['dA' + str(i)] = - (self.cache['Y'] / self.cache['A' + str(i)])
+                # binary and multilabel classification
+                else :
+                    self.cache['dA' + str(i)] = - (self.cache['Y'] / self.cache['A' + str(i)]) + ((1 - self.cache['Y']) / (1 - self.cache['A' + str(i)]))
             else :
                 if self.normalization :
                     self.cache['dA' + str(i)] = np.dot(self.parameters['W' + str(i + 1)].T, self.cache['dZtilde' + str(i + 1)])
@@ -223,8 +228,10 @@ class dnn :
                     self.parameters['b' + str(i)] = self.parameters['b' + str(i)] - self.learning_rate * self.cache['db' + str(i)]
 
     def cost(self) :
-        if self.Y.shape[0] > 1 :
+        # multiclass classification (usually softmax)
+        if self.layers[str(len(self.layers) - 1)]['activation'] == 'softmax' :
             C = np.sum((self.cache['Y'] * np.log(self.cache['A' + str(len(self.layers) - 1)])))
+        # binary and multilabel classification
         else :
             C = np.sum((self.cache['Y'] * np.log(self.cache['A' + str(len(self.layers) - 1)])) + ((1 - self.cache['Y']) * np.log(1 - self.cache['A' + str(len(self.layers) - 1)])))
         L = (-1 / self.m) * C
