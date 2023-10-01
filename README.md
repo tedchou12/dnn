@@ -2,7 +2,7 @@
 I have no intentions to make this a great framework. But since I believe implementation is the quickest way to apply what you learnt. This framework is built to help me understand some of the details in implementing and practicing DNNs.
 
 # Usage
-Example
+New Project Example
 ```
 # importing the function
 from dnn import dnn
@@ -68,6 +68,27 @@ params = obj.train(1000)
 costs = obj.costs
 #if you want to plot out the costs, adjust verbose_int if needed.
 # plt.plot(obj.costs.keys(), obj.costs.values())
+
+# predict:
+result = obj.predict(X)
+```
+Load Old Project Example
+```
+# importing the function
+from dnn import dnn
+
+# loading old
+obj.load()
+# setting hyper-parameters
+obj.learning_rate = 0.05
+obj.mini_batch = True
+obj.batch_size = 64
+obj.verbose = True
+obj.adam = True
+obj.normalization = True
+obj.norm_momentum = 0.3
+obj.auto_save = True
+# no need to add layers because it was loaded from previous data.
 
 # predict:
 result = obj.predict(X)
