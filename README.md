@@ -79,6 +79,7 @@ from dnn import dnn
 
 # loading old
 obj.load()
+
 # setting hyper-parameters
 obj.learning_rate = 0.05
 obj.mini_batch = True
@@ -88,6 +89,7 @@ obj.adam = True
 obj.normalization = True
 obj.norm_momentum = 0.3
 obj.auto_save = True
+
 # no need to add layers because it was loaded from previous data.
 
 # predict:
