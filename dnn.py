@@ -229,7 +229,7 @@ class dnn :
 
     def cost(self) :
         # multiclass classification (usually softmax)
-        if self.layers[str(len(self.layers) - 1)]['activation'] == 'softmax' :
+        if self.layers[len(self.layers) - 1]['activation'] == 'softmax' :
             C = np.sum((self.cache['Y'] * np.log(self.cache['A' + str(len(self.layers) - 1)])))
         # binary and multilabel classification
         else :
