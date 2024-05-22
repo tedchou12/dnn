@@ -46,7 +46,7 @@ def softmax(Z):
     cache -- returns Z as well, useful during backpropagation
     """
 
-    t = np.exp(Z - np.max(Z))
+    t = np.exp(Z - np.max(Z, axis=0))
     A = t / np.sum(t, axis=0, keepdims=True)
     cache = Z
 
